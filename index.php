@@ -1,22 +1,19 @@
 <?php
 session_start();
-// if ($_SESSION['loginStatus'] == false) {
-// 	header("Location: ./signin.php");
-// 	exit;
-// }
 
+//DBとアクセス
 $dbUserName = "root";
 $dbPassword = "root";
 $pdo = new PDO("mysql:host=localhost; dbname=kakeibo; charset=utf8", $dbUserName, $dbPassword);
-// require_once __DIR__ . '/pdo.php';
 
-// $userId = $_SESSION['userId'];
+//今回はusersテーブルのidが「1」の人のデータを表示させます
 $userId = 1;
 $thisYear = date('Y');
 $lastTenYears = range($thisYear - 9, $thisYear);
 
 $selectYear = filter_input(INPUT_GET, 'selectYear');
 
+//spendingsテーブルの支出を合計をしたデータを取得するためのサブクエリを作成
 $spendingSubQuery = <<<EOF
 SELECT 
   DATE_FORMAT(accrual_date, '%Y-%m') as accrual_year_month
@@ -29,6 +26,7 @@ WHERE
 GROUP BY DATE_FORMAT(accrual_date, '%Y-%m')
 EOF;
 
+//incomesテーブルの収入を合計をしたデータを取得するためのサブクエリを作成
 $incomeSubQuery = <<<EOF
 SELECT 
   DATE_FORMAT(accrual_date, '%Y-%m') as accrual_year_month
@@ -42,6 +40,7 @@ GROUP BY DATE_FORMAT(accrual_date, '%Y-%m')
 EOF;
 
 
+//spendingsテーブルとincomesテーブルを結合するサブクエリを作成
 $sql = <<<EOF
 SELECT 
   month_spends.accrual_year_month as spends_date
@@ -56,13 +55,14 @@ ON
   month_spends.accrual_year_month = month_incomes.accrual_year_month;
 EOF;
 
+//上記で作成したサブクエリからデータを取得
 $statement = $pdo->prepare($sql);
 $statement->bindValue(':userId', $userId, PDO::PARAM_INT);
 $statement->bindValue(':selectYear', $selectYear, PDO::PARAM_INT);
 $statement->execute();
 $balances = $statement->fetchAll(PDO::FETCH_ASSOC);
 
-// $statement->debugDumpParams();
+//月毎の収入合計、支出合計、収支計算結果を$balancesGroupByMonthに格納していく
 $balancesGroupByMonth = [];
 foreach ($balances as $balance) {
 	$yearMonth = $balance['spends_date'] ?? $balance['incomes_date'];
@@ -79,6 +79,7 @@ foreach ($balances as $balance) {
 	];
 }
 
+//収支が登録されていない月に0を入れる処理
 for ($i = 1; $i <= 12; $i++) {
 	if (isset($balancesGroupByMonth[$i])) continue;
 
